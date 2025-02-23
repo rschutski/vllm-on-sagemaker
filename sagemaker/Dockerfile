@@ -1,14 +1,8 @@
-FROM vllm/vllm-openai:latest AS vllm-base
-
-# Create a new stage based on vllm-base
-FROM vllm-base AS sagemaker-serving
+ARG VLLM_VERSION=v0.7.3
+FROM vllm/vllm-openai:${VLLM_VERSION}
 
 # Copy the new entrypoint script
-COPY src/sagemaker_serving.py /app/sagemaker_serving.py
 COPY sagemaker/serve /usr/bin/serve
-
-# Set the working directory
-WORKDIR /app
 
 # Ensure the serve script has executable permissions
 RUN chmod +x /usr/bin/serve

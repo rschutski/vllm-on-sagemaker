@@ -1,17 +1,19 @@
 import argparse
-import boto3
-from time import sleep
 from datetime import datetime
+from time import sleep
+
+import boto3  # type: ignore
+
 
 def get_next_version_name(sagemaker, base_name, date, prefix):
-    # 根据前缀确定是模型还是端点配置
+    # "Determine whether it is a model or endpoint configuration based on the prefix"
     existing_names = []
     if prefix == 'model':
         existing_names = [model['ModelName'] for model in sagemaker.list_models()['Models']]
     elif prefix == 'config':
         existing_names = [config['EndpointConfigName'] for config in sagemaker.list_endpoint_configs()['EndpointConfigs']]
     
-    # 筛选出符合基础名称和日期的名称
+    # Filter out the names that match the base name and date
     version_nums = []
     for name in existing_names:
         if name.startswith(f"{base_name}-{date}v"):
@@ -19,7 +21,7 @@ def get_next_version_name(sagemaker, base_name, date, prefix):
             if version_num.isdigit():
                 version_nums.append(int(version_num))
     
-    # 确定下一个版本号
+    # Determine the next version number
     if version_nums:
         next_version = max(version_nums) + 1
     else:
@@ -41,9 +43,9 @@ def main(args):
         PrimaryContainer={
             'Image': args.image,
             'Environment': {
-                'API_HOST': '0.0.0.0',
-                'API_PORT': '8080',
-                'MODEL_ID': args.model_id,
+                'SM_VLLM_HOST': '0.0.0.0',
+                'SM_VLLM_PORT': '8080',
+                'SM_VLLM_MODEL': args.model_id,
                 'INSTANCE_TYPE': args.instance_type,
             }
         },

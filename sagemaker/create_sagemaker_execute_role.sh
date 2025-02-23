@@ -14,10 +14,14 @@ TRUST_POLICY='{
   ]
 }'
 
-ROLE_NAME=SageMakerExecutionRoleTest
+ROLE_NAME=AmazonSageMaker-ExecutionRole-20240501T093332
 
 # Create the role and capture the role ARN
-SAGEMAKER_ROLE_ARN=$(aws iam create-role --role-name $ROLE_NAME --assume-role-policy-document "$TRUST_POLICY" --query 'Role.Arn' --output text)
+#SAGEMAKER_ROLE_ARN=$(aws iam create-role --role-name $ROLE_NAME --assume-role-policy-document "$TRUST_POLICY" --query 'Role.Arn' --output text)
+
+# Get the role ARN or create it
+SAGEMAKER_ROLE_ARN=$(aws iam get-role --role-name $ROLE_NAME --query 'Role.Arn' --output text) || \
+    SAGEMAKER_ROLE_ARN=$(aws iam create-role --role-name $ROLE_NAME --assume-role-policy-document "$TRUST_POLICY" --query 'Role.Arn' --output text)
 
 # Attach SageMaker full access policy
 aws iam attach-role-policy \

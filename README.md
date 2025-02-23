@@ -18,8 +18,10 @@ Start by setting up some environment variables. Adjust them as needed:
 ```sh
 export REGION='us-east-1' # change as needed
 export IMG_NAME='vllm-on-sagemaker' # change as needed
-export IMG_TAG='latest' # change as needed
+export IMG_TAG='v0.7.3' # This is the version of the vllm server. You may need to update scripts if changed.
+# the same tag will be given to the docker image in ECR
 export SAGEMAKER_ENDPOINT_NAME='vllm-on-sagemaker' # change as needed
+export VLLM_MODEL_NAME='Qwen/Qwen2.5-VL-3B-Instruct'
 ```
 
 ### 2. Build and Push Docker Image
@@ -35,16 +37,24 @@ sagemaker/build_and_push_image.sh --region "$REGION" --image-name "$IMG_NAME" --
 After the image is built and pushed, retrieve the image URI:
 
 ```sh
-export IMG_URI=$(sagemaker/get_ecr_image_uri.sh --region "$REGION" --img-name "$IMG_NAME" --tag "$IMG_TAG")
+export IMG_URI=$(sagemaker/get_ecr_image_uri.sh --region "$REGION" --image-name "$IMG_NAME" --tag "$IMG_TAG")
 echo $IMG_URI
 ```
 
-### 4. Create a SageMaker Execution Role
+### 4. Get ARN of the SageMaker Execution Role
 
 Create a SageMaker execution role to allow the endpoint to run properly:
 
 ```sh
 export SM_ROLE=$(sagemaker/create_sagemaker_execute_role.sh)
+echo $SM_ROLE
+```
+
+or use your existing role to get the ARN:
+
+```sh
+ROLE_NAME="AmazonSageMaker-ExecutionRole-20240501T093332"
+export SM_ROLE=$(aws iam get-role --role-name $ROLE_NAME --query Role.Arn --output text)
 echo $SM_ROLE
 ```
 
@@ -55,8 +65,8 @@ Now, create the SageMaker Endpoint. Choose the appropriate Hugging Face model ID
 ```sh
 python3 sagemaker/create_sagemaker_endpoint.py \
     --region "$REGION" \
-    --model_id "deepseek-ai/deepseek-llm-7b-chat" \
-    --instance_type ml.g5.4xlarge \
+    --model_id "$VLLM_MODEL_NAME" \
+    --instance_type ml.g4dn.4xlarge \
     --role_arn $SM_ROLE \
     --image_uri $IMG_URI \
     --endpoint_name $SAGEMAKER_ENDPOINT_NAME

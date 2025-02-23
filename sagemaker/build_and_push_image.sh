@@ -6,14 +6,14 @@ tag="latest"
 image_name="vllm-on-sagemaker"
 
 # Parse named arguments
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --region) region="$2"; shift 2;;
-    --tag) tag="$2"; shift 2;;
-    --image-name) image_name="$2"; shift 2;;
-    --) shift; break;;
-    *) echo "Unknown option: $1" >&2; exit 1;;
-  esac
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --image-name) image_name="$2"; shift ;;
+        --region) region="$2"; shift ;;
+        --tag) tag="$2"; shift ;;
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+    esac
+    shift
 done
 
 # Get the account number associated with the current IAM credentials
@@ -57,7 +57,7 @@ function build_and_push_image() {
     # Build the docker image locally with the image name and then push it to ECR
     # with the full name.
     build_context="${script_dir/..}"
-    docker build --platform linux/amd64 -t "${image_name}" -f ${docker_file} .
+    docker build --platform linux/amd64 --build-arg VLLM_VERSION="${tag}" -t "${image_name}" -f ${docker_file} .
     docker tag "${image_name}" "${image_fullname}"
     docker push "${image_fullname}"
 }

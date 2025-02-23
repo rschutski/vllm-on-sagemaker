@@ -1,75 +1,54 @@
-#!/bin/sh
+#!/bin/bash
 
 # Default values
-DEFAULT_IMG_NAME="vllm-on-sagemaker"
-DEFAULT_AWS_REGION="us-east-1"
-DEFAULT_TAG="latest"
+default_image_name="sagem-mlchem-vllm-endpoints"
+default_aws_region="us-east-1"
+default_tag="latest"
 
 # Function to display usage
 usage() {
     echo "Usage: $0 [options]
 Options:
-    --img-name    The image name (default: $DEFAULT_IMG_NAME)
-    --region      The AWS region (default: $DEFAULT_AWS_REGION)
-    --tag         The image tag (default: $DEFAULT_TAG)"
+    --image-name    The image name (default: $default_image_name)
+    --region        The AWS region (default: $default_aws_region)
+    --tag           The image tag (default: $default_tag)"
     exit 1
 }
 
-# Parse command line arguments
-PARSED_OPTIONS=$(getopt -o "" -l img-name:,region:,tag: -- "$@")
-if [ $? -ne 0 ]; then
-    usage
-fi
-eval set -- "$PARSED_OPTIONS"
-
 # Initialize variables with default values
-IMG_NAME="$DEFAULT_IMG_NAME"
-AWS_REGION="$DEFAULT_AWS_REGION"
-TAG="$DEFAULT_TAG"
+image_name=$default_image_name
+region=$default_aws_region
+tag=$default_tag
 
 # Set options
-while true; do
-    case "$1" in
-        --img-name)
-            IMG_NAME="$2"
-            shift 2
-            ;;
-        --region)
-            AWS_REGION="$2"
-            shift 2
-            ;;
-        --tag)
-            TAG="$2"
-            shift 2
-            ;;
-        --)
-            shift
-            break
-            ;;
-        *)
-            usage
-            ;;
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --image-name) image_name="$2"; shift ;;
+        --region) region="$2"; shift ;;
+        --tag) tag="$2"; shift ;;
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
+    shift
 done
 
 # Determine domain based on region
-if [ "$AWS_REGION" = "cn-north-1" ] || [ "$AWS_REGION" = "cn-northwest-1" ]; then
-    DOMAIN="amazonaws.com.cn"
+if [ "$region" = "cn-north-1" ] || [ "$region" = "cn-northwest-1" ]; then
+    domain="amazonaws.com.cn"
 else
-    DOMAIN="amazonaws.com"
+    domain="amazonaws.com"
 fi
 
 # Retrieve AWS Account ID
-AWS_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+aws_account=$(aws sts get-caller-identity --query Account --output text)
 
 # Get the latest image URI
-IMG_URI=$(aws ecr describe-images --repository-name $IMG_NAME \
-    --region $AWS_REGION \
-    --query "sort_by(imageDetails[?imageTags != null] | [?contains(imageTags, \`${TAG}\`)], &imagePushedAt)[-1].imageTags[0]" \
+img_uri=$(aws ecr describe-images --repository-name $image_name \
+    --region $region \
+    --query "sort_by(imageDetails[?imageTags != null] | [?contains(imageTags, \`${tag}\`)], &imagePushedAt)[-1].imageTags[0]" \
     --output text |\
-awk -v aws_account=$AWS_ACCOUNT \
-    -v aws_region=$AWS_REGION \
-    -v img_name=$IMG_NAME \
-    -v domain=$DOMAIN '{print aws_account ".dkr.ecr." aws_region "." domain "/" img_name ":" $1}')
+awk -v aws_account=$aws_account \
+    -v aws_region=$region \
+    -v img_name=$image_name \
+    -v domain=$domain '{print aws_account ".dkr.ecr." aws_region "." domain "/" img_name ":" $1}')
 
-echo $IMG_URI
+echo $img_uri

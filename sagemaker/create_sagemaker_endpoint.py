@@ -1,5 +1,7 @@
-import boto3
 import argparse
+
+import boto3
+
 
 def create_sagemaker_endpoint(region, instance_type, role_arn, image_uri, endpoint_name, model_id):
     sagemaker = boto3.client('sagemaker', region_name=region)
@@ -8,10 +10,13 @@ def create_sagemaker_endpoint(region, instance_type, role_arn, image_uri, endpoi
         ModelName=endpoint_name + '-model',
         PrimaryContainer={
             'Image': image_uri,
+            # All variables to be passed to vLLM should be prepended with 'SM_VLLM_'.
+            # and have underscores in place of dashes. Argument conversion is done
+            # in the `serve` entrypoint script.
             'Environment': {
-                'API_HOST': '0.0.0.0',
-                'API_PORT': '8080',
-                'MODEL_ID': model_id,
+                'SM_VLLM_HOST': '0.0.0.0',
+                'SM_VLLM_PORT': '8080',  # required for SageMaker endpoints
+                'SM_VLLM_MODEL': model_id,
                 'INSTANCE_TYPE': instance_type,
             },
         },
