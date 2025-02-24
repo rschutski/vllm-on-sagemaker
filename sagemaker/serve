@@ -15,7 +15,7 @@ while IFS='=' read -r key value; do
 
     # Add the argument name and value to the ARGS array
     ARGS+=("${ARG_PREFIX}${arg_name}")
-    if [ -n "$value" ]; then
+    if [ -n "$value" ] && [ "$value" != "true" ]; then
         ARGS+=("$value")
     fi
 done < <(env | grep "^${PREFIX}")

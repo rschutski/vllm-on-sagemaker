@@ -17,11 +17,12 @@ Start by setting up some environment variables. Adjust them as needed:
 
 ```sh
 export REGION='us-east-1' # change as needed
-export IMG_NAME='vllm-on-sagemaker' # change as needed
-export IMG_TAG='v0.7.3' # This is the version of the vllm server. You may need to update scripts if changed.
-# the same tag will be given to the docker image in ECR
+export IMAGE_NAME='vllm-on-sagemaker' # name of the image. Will create a repository with this name in ECR
+export IMAGE_TAG='v0.7.3' # This is the version of the vllm-openai image to use. You may need to update
+# scripts if you change it. The same tag will be given to the docker image in ECR
 export SAGEMAKER_ENDPOINT_NAME='vllm-on-sagemaker' # change as needed
-export VLLM_MODEL_NAME='Qwen/Qwen2.5-VL-3B-Instruct'
+export SM_VLLM_MODEL="Qwen/Qwen2.5-VL-3B-Instruct" # all arguments to vLLM are passed 
+# through the environment variables with `SM_VLLM` prefix.
 ```
 
 ### 2. Build and Push Docker Image
@@ -29,16 +30,16 @@ export VLLM_MODEL_NAME='Qwen/Qwen2.5-VL-3B-Instruct'
 Build the Docker image that will be used to run the SageMaker Endpoint serving container. After building, the image will be pushed to AWS ECR. The container implements `/ping` and `/invocations` APIs, as required by SageMaker Endpoints.
 
 ```sh
-sagemaker/build_and_push_image.sh --region "$REGION" --image-name "$IMG_NAME" --tag "$IMG_TAG"
+sagemaker/build_and_push_image.sh --region "$REGION" --image-name "$IMAGE_NAME" --tag "$IMAGE_TAG"
 ```
 
 ### 3. Get the Image URI
 
-After the image is built and pushed, retrieve the image URI:
+After the image is built and pushed, retrieve the image URI. This script ensures the image exists in ECR:
 
 ```sh
-export IMG_URI=$(sagemaker/get_ecr_image_uri.sh --region "$REGION" --image-name "$IMG_NAME" --tag "$IMG_TAG")
-echo $IMG_URI
+export IMAGE_URI=$(sagemaker/get_ecr_image_uri.sh --region "$REGION" --image-name "$IMAGE_NAME" --tag "$IMAGE_TAG")
+echo $IMAGE_URI
 ```
 
 ### 4. Get ARN of the SageMaker Execution Role
@@ -65,11 +66,10 @@ Now, create the SageMaker Endpoint. Choose the appropriate Hugging Face model ID
 ```sh
 python3 sagemaker/create_sagemaker_endpoint.py \
     --region "$REGION" \
-    --model_id "$VLLM_MODEL_NAME" \
-    --instance_type ml.g4dn.4xlarge \
-    --role_arn $SM_ROLE \
-    --image_uri $IMG_URI \
-    --endpoint_name $SAGEMAKER_ENDPOINT_NAME
+    --instance-type ml.g4dn.4xlarge \
+    --role-arn $SM_ROLE \
+    --image-uri $IMAGE_URI \
+    --endpoint-name $SAGEMAKER_ENDPOINT_NAME
 ```
 
 ### 6. Check the Endpoint

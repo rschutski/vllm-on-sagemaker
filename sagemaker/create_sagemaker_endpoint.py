@@ -1,11 +1,28 @@
 import argparse
+import os
 
 import boto3
 
 
-def create_sagemaker_endpoint(region, instance_type, role_arn, image_uri, endpoint_name, model_id):
+def get_env_for_sagemaker(verbose: bool = True):    
+    """
+    Collect all environment variables prefixed with 'SM_VLLM_' and return as a new dict.
+    This is used to pass environment variables to the SageMaker container.
+    """
+    env = {}
+    for key, value in os.environ.items():
+        if key.startswith('SM_VLLM'):
+            env[key] = value
+    if verbose:
+        variables = "\n".join([f"{key}: {value}" for key, value in env.items()])
+        print(f"Environment variables passed to vLLM: {variables}")
+    return env
+
+
+def create_sagemaker_endpoint(region, instance_type, role_arn, image_uri, endpoint_name):
     sagemaker = boto3.client('sagemaker', region_name=region)
 
+    env = get_env_for_sagemaker()
     create_model_response = sagemaker.create_model(
         ModelName=endpoint_name + '-model',
         PrimaryContainer={
@@ -16,8 +33,8 @@ def create_sagemaker_endpoint(region, instance_type, role_arn, image_uri, endpoi
             'Environment': {
                 'SM_VLLM_HOST': '0.0.0.0',
                 'SM_VLLM_PORT': '8080',  # required for SageMaker endpoints
-                'SM_VLLM_MODEL': model_id,
                 'INSTANCE_TYPE': instance_type,
+                **env,
             },
         },
         ExecutionRoleArn=role_arn,
@@ -45,11 +62,10 @@ def create_sagemaker_endpoint(region, instance_type, role_arn, image_uri, endpoi
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--region', default='us-east-1', help='The region to create the endpoint')
-    parser.add_argument('--model_id', required=True, help='The Hugging Face model ID to use')
-    parser.add_argument('--instance_type', required=True, help='Instance type for the SageMaker endpoint')
-    parser.add_argument('--role_arn', required=True, help='The ARN of the IAM role for SageMaker to access resources')
-    parser.add_argument('--image_uri', required=True, help='The URI of the Docker image in ECR')
-    parser.add_argument('--endpoint_name', default='vllm-endpoint', help='The name of the endpoint to create')
+    parser.add_argument('--instance-type', required=True, help='Instance type for the SageMaker endpoint')
+    parser.add_argument('--role-arn', required=True, help='The ARN of the IAM role for SageMaker to access resources')
+    parser.add_argument('--image-uri', required=True, help='The URI of the Docker image in ECR')
+    parser.add_argument('--endpoint-name', default='vllm-endpoint', help='The name of the endpoint to create')
 
     args = parser.parse_args()
 
@@ -59,5 +75,4 @@ if __name__ == '__main__':
         role_arn=args.role_arn,
         image_uri=args.image_uri,
         endpoint_name=args.endpoint_name,
-        model_id=args.model_id,
     )

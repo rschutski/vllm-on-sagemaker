@@ -1,12 +1,16 @@
 import argparse
-import sys
-import io
 import json
+import sys
+
 import boto3
 import botocore
 
 
 def process_response(resp_body):
+    """
+    Process non-streaming response from SageMaker and print the
+    messages sent by the model.
+    """
     assert isinstance(resp_body, botocore.response.StreamingBody)
 
     buffer = ''
@@ -22,7 +26,7 @@ def process_response(resp_body):
         try:
             buffer += data_str
             data = json.loads(buffer.strip())
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             continue
         else:
             buffer = ''
@@ -39,6 +43,11 @@ def process_response(resp_body):
     print('')
 
 def process_streaming_body(streaming_body):
+    
+    """
+    Process a streaming response object from SageMaker and print the
+    messages sent by the model.
+    """
     assert isinstance(streaming_body, botocore.eventstream.EventStream)
 
     buffer = ''
@@ -51,7 +60,7 @@ def process_streaming_body(streaming_body):
         try:
             buffer += data_str
             data = json.loads(buffer.strip())
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             continue
         else:
             buffer = ''
@@ -66,7 +75,7 @@ def process_streaming_body(streaming_body):
 
 parser = argparse.ArgumentParser(description='Send a request to the SageMaker endpoint for inference.')
 parser.add_argument('--region', type=str, default='us-east-1', help='The region of the SageMaker endpoint')
-parser.add_argument('--endpoint_name', type=str, required=True, help='The SageMaker endpoint')
+parser.add_argument('--endpoint-name', type=str, required=True, help='The SageMaker endpoint')
 args = parser.parse_args()
 
 
@@ -88,28 +97,39 @@ payload = {
     # NOTE! The 'model' parameter is mandated by OpenAI API interface,
     # but it doesn't mean we can choose the model on the fly, the model is set
     # when creating the Sagemaker Endpoiont.
-    "model": "deepseek-ai/deepseek-llm-7b-chat",
+    "model": "Qwen/Qwen2.5-VL-3B-Instruct",
     # "stream": True,
     "messages": [
         {
             "role": "system",
             "content": "You are a helpful assistant."
         },
-        {
+		{
             "role": "user",
-            "content": "What is Deep Learning?"
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Describe this image in one sentence."
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
+                    }
+                }
+            ]
         }
     ],
     "max_tokens": 1024
 }
-print(f"\n\n=========== Testing non-streaming API ===========")
+print("\n\n=========== Testing non-streaming API ===========")
 sys.stdout.flush()
 response = client.invoke_endpoint(
     EndpointName=args.endpoint_name,
     Body=json.dumps(payload),
     ContentType="application/json",
 )
-print(type(response['Body'])) # botocore.response.StreamingBody
+print(type(response['Body']))
 process_response(response['Body'])
 
 
@@ -124,31 +144,14 @@ process_response(response['Body'])
 # inside the vLLM, but if you use invoke_endpoint, instead of invoke_endpoint_with_response_stream,
 # even if you pass 'stream=True', you still won't get the real streaming response.
 # 
-spayload = {
-    # NOTE! The 'model' parameter is mandated by OpenAI API interface,
-    # but it doesn't mean we can choose the model on the fly, the model is set
-    # when creating the Sagemaker Endpoiont.
-    "model": "deepseek-ai/deepseek-llm-7b-chat",
-    "stream": True,
-    "messages": [
-        {
-            "role": "system",
-            "content": "You are a helpful assistant."
-        },
-        {
-            "role": "user",
-            "content": "What is Deep Learning?"
-        }
-    ],
-    "max_tokens": 1024
-}
-assert 'stream' in spayload and spayload['stream'], "stream=True must be set when using invoke_endpoint_with_response_stream "
-print(f"\n\n=========== Testing streaming API ===========")
+spayload = payload.copy()
+spayload["stream"] = True # stream must be True when using invoke_endpoint_with_response_stream "
+print("\n\n=========== Testing streaming API ===========")
 sys.stdout.flush()
 stream_response = client.invoke_endpoint_with_response_stream(
     EndpointName=args.endpoint_name,
     Body=json.dumps(spayload),
     ContentType="application/json",
 )
-print(type(stream_response['Body'])) # botocore.eventstream.EventStream
+print(type(stream_response['Body']))
 process_streaming_body(stream_response['Body'])

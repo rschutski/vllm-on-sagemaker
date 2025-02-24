@@ -30,13 +30,13 @@ def remove_sagemaker_endpoint_config(config_name):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Remove SageMaker endpoint, model, or endpoint configuration.")
-    parser.add_argument('--endpoint-name', type=str, help="Name of the SageMaker endpoint to remove.")
+    parser.add_argument('--endpoint', type=str, help="Name of the SageMaker endpoint to remove.")
     args = parser.parse_args()
-    if args.endpoint_name:
-        remove_sagemaker_endpoint(args.endpoint_name)
-        remove_sagemaker_model(args.endpoint_name + "-model")
-        remove_sagemaker_endpoint_config(args.endpoint_name + "-config")
+    if args.endpoint:
+        remove_sagemaker_endpoint(args.endpoint)
+        remove_sagemaker_model(args.endpoint + "-model")
+        remove_sagemaker_endpoint_config(args.endpoint + "-config")
 
-    if not args.endpoint_name:
+    if not args.endpoint:
         print("Please provide the name of the SageMaker endpoint to remove.")
         sys.exit(1)
