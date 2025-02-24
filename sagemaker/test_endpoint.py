@@ -1,104 +1,69 @@
 import argparse
+import base64
 import json
 import sys
+from typing import Any
 
-import boto3
-import botocore
+import boto3  # type: ignore
+import requests
+from botocore.eventstream import EventStream  # type: ignore
+from botocore.response import StreamingBody  # type: ignore
 
 
-def process_response(resp_body):
+def append_chunk_try_decode(chunk: bytes, buffer: str) -> tuple[dict[str, Any], str]:
+    data_str = chunk.decode('utf-8')
+    data = {}
+    if data_str.startswith("data: "):
+        data_str = data_str[len("data: "):]
+    try:
+        buffer += data_str
+        data = json.loads(buffer.strip())
+    except json.JSONDecodeError:
+        pass
+    else:
+        buffer = ''
+    return data, buffer
+
+def process_response(response: StreamingBody | EventStream):
     """
-    Process non-streaming response from SageMaker and print the
+    Process a response from SageMaker and print the
     messages sent by the model.
     """
-    assert isinstance(resp_body, botocore.response.StreamingBody)
-
     buffer = ''
-    for line in resp_body.iter_lines():
-        if not line:
+    for chunk in response:
+        if not chunk:
             continue
+        elif isinstance(chunk, dict):
+            chunk = chunk["PayloadPart"]["Bytes"]
+        
+        data, buffer = append_chunk_try_decode(chunk, buffer)
 
-        data_str = line.decode('utf-8')
-        # strip the data: prefix
-        if data_str.startswith("data: "):
-            data_str = data_str[len("data: "):]
-
-        try:
-            buffer += data_str
-            data = json.loads(buffer.strip())
-        except json.JSONDecodeError:
-            continue
-        else:
-            buffer = ''
-
-        for choice in data['choices']:
-            if 'message' in choice:
-                # parameter 'stream = False' in req
-                print(choice['message']['content'])
-            else:
-                # parameter 'stream = True' in req
-                if 'content' in choice['delta']:
-                    print(choice['delta']['content'], end="")
-                    sys.stdout.flush()
+        if data:
+            for choice in data['choices']:
+                if 'message' in choice:
+                    print(choice['message']['content'])
+                else:
+                    if 'content' in choice['delta']:
+                        print(choice['delta']['content'], end="")
+                        sys.stdout.flush()
     print('')
-
-def process_streaming_body(streaming_body):
-    
-    """
-    Process a streaming response object from SageMaker and print the
-    messages sent by the model.
-    """
-    assert isinstance(streaming_body, botocore.eventstream.EventStream)
-
-    buffer = ''
-    for event in streaming_body:
-        data_str = event["PayloadPart"]["Bytes"].decode('utf-8')
-        # strip the data: prefix
-        if data_str.startswith("data: "):
-            data_str = data_str[len("data: "):]
-
-        try:
-            buffer += data_str
-            data = json.loads(buffer.strip())
-        except json.JSONDecodeError:
-            continue
-        else:
-            buffer = ''
-
-        for choice in data['choices']:
-            if 'content' in choice['delta']:
-                print(choice['delta']['content'], end='')
-                sys.stdout.flush() # Don‘t buffer, print immediately...
-    
-    print('') # EOS
-
 
 parser = argparse.ArgumentParser(description='Send a request to the SageMaker endpoint for inference.')
 parser.add_argument('--region', type=str, default='us-east-1', help='The region of the SageMaker endpoint')
 parser.add_argument('--endpoint-name', type=str, required=True, help='The SageMaker endpoint')
 args = parser.parse_args()
 
-
 # Create SageMaker runtime client
 client = boto3.client("runtime.sagemaker", region_name=args.region)
+url = "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
+image_content = requests.get(url, timeout=30).content
+encoded_image = base64.b64encode(image_content).decode('utf-8')
 
-
-# 
-# Demo: Non-streaming mode
-#
-# parameters are compatible with OpenAI API format: 
-# https://platform.openai.com/docs/api-reference/introduction
-# with extra ones supported by vLLM, see vLLM Docs.
-#
-# Note! The streaming behavior is actually controlled by the 'stream=True' parameter
-# inside the vLLM, but since you use invoke_endpoint,
-# even if you pass 'stream=True', you still won't get the real streaming response.
 payload = {
-    # NOTE! The 'model' parameter is mandated by OpenAI API interface,
+    # NOTE: The 'model' parameter is mandated by OpenAI API interface,
     # but it doesn't mean we can choose the model on the fly, the model is set
     # when creating the Sagemaker Endpoiont.
     "model": "Qwen/Qwen2.5-VL-3B-Instruct",
-    # "stream": True,
     "messages": [
         {
             "role": "system",
@@ -114,7 +79,8 @@ payload = {
                 {
                     "type": "image_url",
                     "image_url": {
-                        "url": "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
+                        # can pass image urls directly, but we won't do it to actually check the image content
+                        "url": f"data:image/jpeg;base64,{encoded_image}"
                     }
                 }
             ]
@@ -122,6 +88,17 @@ payload = {
     ],
     "max_tokens": 1024
 }
+
+# Demo: Non-streaming mode
+#
+# parameters are compatible with OpenAI API format: 
+# https://platform.openai.com/docs/api-reference/introduction
+# with extra ones supported by vLLM, see vLLM Docs.
+#
+# NOTE: The streaming behavior is actually controlled by the 'stream=True' parameter
+# inside the vLLM, but since you use invoke_endpoint,
+# even if you pass 'stream=True', you still won't get the real streaming response.
+
 print("\n\n=========== Testing non-streaming API ===========")
 sys.stdout.flush()
 response = client.invoke_endpoint(
@@ -129,23 +106,20 @@ response = client.invoke_endpoint(
     Body=json.dumps(payload),
     ContentType="application/json",
 )
-print(type(response['Body']))
 process_response(response['Body'])
 
-
-# 
 # Demo: streaming mode
 #
 # parameters are compatible with OpenAI API format: 
 # https://platform.openai.com/docs/api-reference/introduction
 # with extra ones supported by vLLM, see vLLM Docs.
 # 
-# Note! The streaming behavior is actually controlled by the 'stream=True' parameter
+# NOTE: The streaming behavior is actually controlled by the 'stream=True' parameter
 # inside the vLLM, but if you use invoke_endpoint, instead of invoke_endpoint_with_response_stream,
 # even if you pass 'stream=True', you still won't get the real streaming response.
-# 
 spayload = payload.copy()
-spayload["stream"] = True # stream must be True when using invoke_endpoint_with_response_stream "
+spayload["stream"] = True # stream must be True when using invoke_endpoint_with_response_stream"
+
 print("\n\n=========== Testing streaming API ===========")
 sys.stdout.flush()
 stream_response = client.invoke_endpoint_with_response_stream(
@@ -153,5 +127,4 @@ stream_response = client.invoke_endpoint_with_response_stream(
     Body=json.dumps(spayload),
     ContentType="application/json",
 )
-print(type(stream_response['Body']))
-process_streaming_body(stream_response['Body'])
+process_response(stream_response['Body'])
