@@ -1,7 +1,7 @@
 import argparse
 import os
 
-import boto3
+import boto3  # type: ignore
 
 
 def get_env_for_sagemaker(verbose: bool = True):    

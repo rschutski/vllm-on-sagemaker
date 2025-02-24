@@ -1,7 +1,7 @@
 import argparse
 import sys
 
-import boto3
+import boto3  # type: ignore
 
 
 def remove_sagemaker_endpoint(endpoint_name):
