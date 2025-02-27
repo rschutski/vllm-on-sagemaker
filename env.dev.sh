@@ -1,0 +1,10 @@
+export REGION='us-east-1'
+export IMAGE_NAME='vllm-endpoints' # change as needed
+export IMAGE_TAG='v0.7.3'
+export SAGEMAKER_ENDPOINT_NAME='vllm-qwen25-vl-3b-instruct' # change as needed
+export SM_VLLM_MODEL="Qwen/Qwen2.5-VL-3B-Instruct" # change as needed
+export SM_VLLM_DTYPE="half"
+export SM_VLLM_MAX_MODEL_LEN=48000
+export SM_VLLM_ENABLE_AUTO_TOOL_CHOICE="true" 
+export SM_VLLM_TOOL_CALL_PARSER="hermes"
+# export SM_VLLM_KV_CACHE_DTYPE="fp8" only supported on H100

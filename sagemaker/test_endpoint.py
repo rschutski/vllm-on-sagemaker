@@ -11,10 +11,8 @@ from botocore.response import StreamingBody  # type: ignore
 
 
 def append_chunk_try_decode(chunk: bytes, buffer: str) -> tuple[dict[str, Any], str]:
-    data_str = chunk.decode('utf-8')
     data = {}
-    if data_str.startswith("data: "):
-        data_str = data_str[len("data: "):]
+    data_str = chunk.strip(b'data: ').decode('utf-8')
     try:
         buffer += data_str
         data = json.loads(buffer.strip())
@@ -51,6 +49,7 @@ def process_response(response: StreamingBody | EventStream):
 parser = argparse.ArgumentParser(description='Send a request to the SageMaker endpoint for inference.')
 parser.add_argument('--region', type=str, default='us-east-1', help='The region of the SageMaker endpoint')
 parser.add_argument('--endpoint-name', type=str, required=True, help='The SageMaker endpoint')
+parser.add_argument('--model', type=str, required=True, help='The model name')
 args = parser.parse_args()
 
 # Create SageMaker runtime client
@@ -59,11 +58,15 @@ url = "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island
 image_content = requests.get(url, timeout=30).content
 encoded_image = base64.b64encode(image_content).decode('utf-8')
 
+# The vLLM endpoint expects a JSON with the OpenAI API format.
+# https://platform.openai.com/docs/api-reference/introduction
+# with extra ones supported by vLLM, see vLLM Docs:
+# https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html
 payload = {
     # NOTE: The 'model' parameter is mandated by OpenAI API interface,
     # but it doesn't mean we can choose the model on the fly, the model is set
     # when creating the Sagemaker Endpoiont.
-    "model": "Qwen/Qwen2.5-VL-3B-Instruct",
+    "model": args.model,
     "messages": [
         {
             "role": "system",
@@ -92,8 +95,7 @@ payload = {
 # Demo: Non-streaming mode
 #
 # parameters are compatible with OpenAI API format: 
-# https://platform.openai.com/docs/api-reference/introduction
-# with extra ones supported by vLLM, see vLLM Docs.
+
 #
 # NOTE: The streaming behavior is actually controlled by the 'stream=True' parameter
 # inside the vLLM, but since you use invoke_endpoint,
