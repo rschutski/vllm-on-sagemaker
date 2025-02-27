@@ -99,13 +99,13 @@ python sagemaker/test_endpoint.py --endpoint-name $SAGEMAKER_ENDPOINT_NAME --reg
 The following script shows a simple integration example with Langchain. You will need `langchain-aws` and `langchain` installed to run it.
 
 ```sh
-python sagemaker/test_endpoint_langchain.py --endpoint-name $SAGEMAKER_ENDPOINT_NAME --model $SM_VLLM_MODEL
+python src/test_endpoint_langchain.py --endpoint-name $SAGEMAKER_ENDPOINT_NAME --model $SM_VLLM_MODEL
 ```
 
 Pure requests implementation is also available:
 
 ```sh
-python sagemaker/test_endpoint_requests.py --endpoint-name $SAGEMAKER_ENDPOINT_NAME --model $SM_VLLM_MODEL
+python src/test_endpoint_requests.py --endpoint-name $SAGEMAKER_ENDPOINT_NAME --model $SM_VLLM_MODEL
 ```
 
 Additionally, you can use `awscurl` command line utility (`curl` substitute that handles authentification properly) to send requests to the endpoint:
